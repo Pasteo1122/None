@@ -1,0 +1,599 @@
+--[[
+    +1 Fatty Script
+    Start/Stop Fatty Spam
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+local FattyScript = {}
+FattyScript.__index = FattyScript
+
+local State = {
+    Running = false,
+    WindowOpen = true,
+    Dragging = false,
+    DragInput = nil,
+    DragStart = nil,
+    StartPos = nil,
+}
+
+local Connections = {}
+local GuiObjects = {}
+
+local function Create(className, properties, children)
+    local inst = Instance.new(className)
+    for k, v in pairs(properties or {}) do
+        inst[k] = v
+    end
+    for _, child in pairs(children or {}) do
+        child.Parent = inst
+    end
+    return inst
+end
+
+local function Tween(obj, props, duration, style, dir)
+    local t = TweenService:Create(obj, TweenInfo.new(duration or 0.25, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props)
+    t:Play()
+    return t
+end
+
+local function AddCorner(parent, radius)
+    return Create("UICorner", { CornerRadius = UDim.new(0, radius or 8), Parent = parent })
+end
+
+local function AddStroke(parent, color, thickness, transparency)
+    return Create("UIStroke", {
+        Color = color or Color3.fromRGB(255, 255, 255),
+        Thickness = thickness or 1,
+        Transparency = transparency or 0.8,
+        Parent = parent
+    })
+end
+
+local function AddPadding(parent, top, bottom, left, right)
+    return Create("UIPadding", {
+        PaddingTop = UDim.new(0, top or 8),
+        PaddingBottom = UDim.new(0, bottom or 8),
+        PaddingLeft = UDim.new(0, left or 8),
+        PaddingRight = UDim.new(0, right or 8),
+        Parent = parent
+    })
+end
+
+local Icons = {
+    Main = "rbxassetid://6031265976",
+    Cheeseburger = "rbxthumb://type=Asset&id=43149111&w=420&h=420",
+}
+
+local ColorPresets = {
+    Purple = {
+        Window = Color3.fromRGB(30, 15, 50),
+        Accent = Color3.fromRGB(140, 60, 255),
+        AccentDark = Color3.fromRGB(100, 40, 200),
+        Section = Color3.fromRGB(25, 12, 42),
+        Text = Color3.fromRGB(230, 230, 240),
+        TextDim = Color3.fromRGB(140, 140, 160),
+        Card = Color3.fromRGB(32, 32, 48),
+        CardHover = Color3.fromRGB(38, 38, 55),
+    },
+    Blue = {
+        Window = Color3.fromRGB(15, 25, 50),
+        Accent = Color3.fromRGB(50, 120, 255),
+        AccentDark = Color3.fromRGB(35, 90, 200),
+        Section = Color3.fromRGB(12, 20, 42),
+        Text = Color3.fromRGB(230, 230, 240),
+        TextDim = Color3.fromRGB(140, 140, 160),
+        Card = Color3.fromRGB(20, 32, 55),
+        CardHover = Color3.fromRGB(25, 40, 65),
+    },
+    Red = {
+        Window = Color3.fromRGB(45, 12, 15),
+        Accent = Color3.fromRGB(255, 60, 60),
+        AccentDark = Color3.fromRGB(200, 45, 45),
+        Section = Color3.fromRGB(38, 10, 12),
+        Text = Color3.fromRGB(230, 230, 240),
+        TextDim = Color3.fromRGB(140, 140, 160),
+        Card = Color3.fromRGB(50, 15, 18),
+        CardHover = Color3.fromRGB(60, 20, 22),
+    },
+    Pink = {
+        Window = Color3.fromRGB(45, 15, 35),
+        Accent = Color3.fromRGB(255, 80, 180),
+        AccentDark = Color3.fromRGB(200, 60, 140),
+        Section = Color3.fromRGB(38, 12, 28),
+        Text = Color3.fromRGB(230, 230, 240),
+        TextDim = Color3.fromRGB(140, 140, 160),
+        Card = Color3.fromRGB(50, 18, 40),
+        CardHover = Color3.fromRGB(60, 22, 48),
+    },
+    Black = {
+        Window = Color3.fromRGB(18, 18, 18),
+        Accent = Color3.fromRGB(100, 100, 100),
+        AccentDark = Color3.fromRGB(70, 70, 70),
+        Section = Color3.fromRGB(12, 12, 12),
+        Text = Color3.fromRGB(230, 230, 240),
+        TextDim = Color3.fromRGB(140, 140, 160),
+        Card = Color3.fromRGB(25, 25, 25),
+        CardHover = Color3.fromRGB(32, 32, 32),
+    },
+    White = {
+        Window = Color3.fromRGB(245, 245, 245),
+        Accent = Color3.fromRGB(80, 80, 80),
+        AccentDark = Color3.fromRGB(60, 60, 60),
+        Section = Color3.fromRGB(230, 230, 230),
+        Text = Color3.fromRGB(20, 20, 20),
+        TextDim = Color3.fromRGB(80, 80, 80),
+        Card = Color3.fromRGB(225, 225, 225),
+        CardHover = Color3.fromRGB(215, 215, 215),
+    },
+}
+
+local Theme = {
+    Background = Color3.fromRGB(20, 20, 30),
+    Window = Color3.fromRGB(25, 25, 38),
+    Accent = Color3.fromRGB(140, 60, 255),
+    AccentDark = Color3.fromRGB(100, 40, 200),
+    AccentLight = Color3.fromRGB(180, 100, 255),
+    Text = Color3.fromRGB(230, 230, 240),
+    TextDim = Color3.fromRGB(140, 140, 160),
+    Card = Color3.fromRGB(32, 32, 48),
+    CardHover = Color3.fromRGB(38, 38, 55),
+    Border = Color3.fromRGB(50, 50, 70),
+    Success = Color3.fromRGB(50, 200, 100),
+    Error = Color3.fromRGB(220, 50, 50),
+    Section = Color3.fromRGB(28, 28, 42),
+}
+
+local function FireEat()
+    game:GetService("ReplicatedStorage").Remote.Event.Eat.PlayerTryClickRE:FireServer(true)
+end
+
+local function StartLoop()
+    if State.Running then return end
+    State.Running = true
+
+    task.spawn(function()
+        while State.Running do
+            FireEat()
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function StopLoop()
+    State.Running = false
+end
+
+function FattyScript:CreateWindow(config)
+    config = config or {}
+    local WindowName = config.Name or "+1 Fatty Script"
+    local Size = config.Size or UDim2.new(0, 340, 0, 260)
+
+    if CoreGui:FindFirstChild("FattyScript_Main") then
+        CoreGui:FindFirstChild("FattyScript_Main"):Destroy()
+    end
+
+    local ScreenGui = Create("ScreenGui", {
+        Name = "FattyScript_Main",
+        DisplayOrder = 999,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ResetOnSpawn = false,
+        Parent = CoreGui
+    })
+
+    local Shadow = Create("ImageLabel", {
+        Name = "Shadow",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.5, 4),
+        Size = UDim2.new(1, 50, 1, 50),
+        Image = "rbxassetid://5554236805",
+        ImageColor3 = Color3.fromRGB(0, 0, 0),
+        ImageTransparency = 0.5,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(23, 23, 277, 277),
+        Parent = ScreenGui
+    })
+
+    local MainFrame = Create("Frame", {
+        Name = "MainFrame",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Window,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = Size,
+        Parent = ScreenGui
+    })
+    AddCorner(MainFrame, 10)
+    AddStroke(MainFrame, Theme.Border, 1)
+
+    local TopBar = Create("Frame", {
+        Name = "TopBar",
+        BackgroundColor3 = Theme.Section,
+        Size = UDim2.new(1, 0, 0, 42),
+        Parent = MainFrame
+    })
+    AddCorner(TopBar, 10)
+
+    local TopBarFix = Create("Frame", {
+        Name = "Fix",
+        BackgroundColor3 = Theme.Section,
+        Position = UDim2.new(0, 0, 0.6, 0),
+        Size = UDim2.new(1, 0, 0.4, 0),
+        Parent = TopBar
+    })
+
+    local MainIcon = Create("ImageLabel", {
+        Name = "MainIcon",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 14, 0.5, -12),
+        Size = UDim2.new(0, 24, 0, 24),
+        Image = Icons.Main,
+        ImageColor3 = Theme.Accent,
+        Parent = TopBar
+    })
+
+    local Title = Create("TextLabel", {
+        Name = "Title",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 44, 0, 0),
+        Size = UDim2.new(0.5, 0, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = WindowName,
+        TextColor3 = Theme.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = TopBar
+    })
+
+    local Controls = Create("Frame", {
+        Name = "Controls",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(1, -70, 0, 0),
+        Size = UDim2.new(0, 62, 1, 0),
+        Parent = TopBar
+    })
+
+    local MinimizeBtn = Create("TextButton", {
+        Name = "Minimize",
+        BackgroundColor3 = Theme.AccentDark,
+        Position = UDim2.new(0, 0, 0.5, -11),
+        Size = UDim2.new(0, 22, 0, 22),
+        Font = Enum.Font.GothamBold,
+        Text = "-",
+        TextColor3 = Theme.Text,
+        TextSize = 16,
+        Parent = Controls
+    })
+    AddCorner(MinimizeBtn, 6)
+
+    local CloseBtn = Create("TextButton", {
+        Name = "Close",
+        BackgroundColor3 = Theme.Error,
+        Position = UDim2.new(0, 28, 0.5, -11),
+        Size = UDim2.new(0, 22, 0, 22),
+        Font = Enum.Font.GothamBold,
+        Text = "X",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 13,
+        Parent = Controls
+    })
+    AddCorner(CloseBtn, 6)
+
+    local ContentFrame = Create("Frame", {
+        Name = "ContentFrame",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 12, 0, 50),
+        Size = UDim2.new(1, -24, 1, -60),
+        Parent = MainFrame
+    })
+
+    local ContentLayout = Create("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = ContentFrame
+    })
+
+    GuiObjects.ScreenGui = ScreenGui
+    GuiObjects.MainFrame = MainFrame
+    GuiObjects.ContentFrame = ContentFrame
+
+    local function UpdateDrag(input)
+        local delta = input.Position - State.DragStart
+        local pos = UDim2.new(State.StartPos.X.Scale, State.StartPos.X.Offset + delta.X, State.StartPos.Y.Scale, State.StartPos.Y.Offset + delta.Y)
+        Tween(MainFrame, {Position = pos}, 0.1)
+    end
+
+    TopBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            State.Dragging = true
+            State.DragStart = input.Position
+            State.StartPos = MainFrame.Position
+        end
+    end)
+
+    TopBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            State.Dragging = false
+        end
+    end)
+
+    TopBar.InputChanged:Connect(function(input)
+        if State.Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            State.DragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == State.DragInput and State.Dragging then
+            UpdateDrag(input)
+        end
+    end)
+
+    MinimizeBtn.MouseEnter:Connect(function()
+        Tween(MinimizeBtn, {BackgroundColor3 = Theme.Accent}, 0.15)
+    end)
+    MinimizeBtn.MouseLeave:Connect(function()
+        Tween(MinimizeBtn, {BackgroundColor3 = Theme.AccentDark}, 0.15)
+    end)
+
+    CloseBtn.MouseEnter:Connect(function()
+        Tween(CloseBtn, {BackgroundColor3 = Color3.fromRGB(255, 80, 80)}, 0.15)
+    end)
+    CloseBtn.MouseLeave:Connect(function()
+        Tween(CloseBtn, {BackgroundColor3 = Theme.Error}, 0.15)
+    end)
+
+    local Minimized = false
+
+    local CheeseburgerIcon = Create("TextButton", {
+        Name = "CheeseburgerIcon",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Accent,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, 80, 0, 80),
+        Font = Enum.Font.GothamBold,
+        Text = "+1",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 28,
+        Visible = false,
+        ZIndex = 100,
+        Parent = ScreenGui
+    })
+    AddCorner(CheeseburgerIcon, 40)
+    AddStroke(CheeseburgerIcon, Color3.fromRGB(255, 255, 255), 2, 0.3)
+
+    local BurgerDragging = false
+    local BurgerDragStart = nil
+    local BurgerStartPos = nil
+    local BurgerDragInput = nil
+    local BurgerMoved = false
+
+    local function UpdateBurgerDrag(input)
+        local delta = input.Position - BurgerDragStart
+        local pos = UDim2.new(0, BurgerStartPos.X + delta.X, 0, BurgerStartPos.Y + delta.Y)
+        CheeseburgerIcon.Position = pos
+    end
+
+    CheeseburgerIcon.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            BurgerDragging = true
+            BurgerMoved = false
+            BurgerDragStart = input.Position
+            BurgerStartPos = CheeseburgerIcon.AbsolutePosition
+        end
+    end)
+
+    CheeseburgerIcon.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            BurgerDragging = false
+        end
+    end)
+
+    CheeseburgerIcon.InputChanged:Connect(function(input)
+        if BurgerDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            BurgerDragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == BurgerDragInput and BurgerDragging then
+            BurgerMoved = true
+            UpdateBurgerDrag(input)
+        end
+    end)
+
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        Minimized = not Minimized
+        if Minimized then
+            MainFrame.Visible = false
+            Shadow.Visible = false
+            CheeseburgerIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+            CheeseburgerIcon.Visible = true
+            CheeseburgerIcon.Size = UDim2.new(0, 0, 0, 0)
+            Tween(CheeseburgerIcon, {Size = UDim2.new(0, 60, 0, 60)}, 0.3, Enum.EasingStyle.Back)
+        else
+            CheeseburgerIcon.Visible = false
+            MainFrame.Visible = true
+            Shadow.Visible = true
+            MainFrame.Size = UDim2.new(0, 0, 0, 0)
+            Tween(MainFrame, {Size = Size}, 0.3, Enum.EasingStyle.Back)
+        end
+    end)
+
+    CheeseburgerIcon.MouseButton1Click:Connect(function()
+        if BurgerMoved then return end
+        Minimized = false
+        CheeseburgerIcon.Visible = false
+        MainFrame.Visible = true
+        Shadow.Visible = true
+        MainFrame.Size = UDim2.new(0, 0, 0, 0)
+        Tween(MainFrame, {Size = Size}, 0.3, Enum.EasingStyle.Back)
+    end)
+
+    CloseBtn.MouseButton1Click:Connect(function()
+        StopLoop()
+        State.WindowOpen = false
+        for _, v in pairs(Connections) do
+            if v.Conn then v.Conn:Disconnect() end
+        end
+        Connections = {}
+        Tween(MainFrame, {Size = UDim2.new(0, Size.X.Offset, 0, 0), Position = UDim2.new(0.5, 0, 0.5, Size.Y.Offset / 2)}, 0.3)
+        Tween(Shadow, {ImageTransparency = 1}, 0.3)
+        task.wait(0.3)
+        ScreenGui:Destroy()
+    end)
+
+    local WindowObj = setmetatable({}, FattyScript)
+    WindowObj.Tabs = {}
+
+    local StatusLabel = nil
+    local StartBtn = nil
+    local StopBtn = nil
+
+    local function CreateButton(text, color, callback)
+        local Btn = Create("TextButton", {
+            Name = text,
+            BackgroundColor3 = color,
+            Size = UDim2.new(1, 0, 0, 40),
+            Font = Enum.Font.GothamBold,
+            Text = text,
+            TextColor3 = Theme.Text,
+            TextSize = 14,
+            Parent = ContentFrame
+        })
+        AddCorner(Btn, 6)
+
+        Btn.MouseButton1Click:Connect(function()
+            Tween(Btn, {BackgroundColor3 = Theme.AccentDark}, 0.1)
+            task.wait(0.1)
+            Tween(Btn, {BackgroundColor3 = color}, 0.2)
+            callback()
+        end)
+
+        Btn.MouseEnter:Connect(function()
+            Tween(Btn, {BackgroundColor3 = Theme.CardHover}, 0.15)
+        end)
+
+        Btn.MouseLeave:Connect(function()
+            Tween(Btn, {BackgroundColor3 = color}, 0.15)
+        end)
+
+        return Btn
+    end
+
+    StartBtn = CreateButton("Start +1 Fatty", Theme.Success, function()
+        StartLoop()
+        if StatusLabel then StatusLabel.Text = "Status: Running" end
+    end)
+
+    StopBtn = CreateButton("Stop", Theme.Error, function()
+        StopLoop()
+        if StatusLabel then StatusLabel.Text = "Status: Stopped" end
+    end)
+
+    local ColorSection = Create("Frame", {
+        Name = "ColorSection",
+        BackgroundColor3 = Theme.Card,
+        Size = UDim2.new(1, 0, 0, 50),
+        Parent = ContentFrame
+    })
+    AddCorner(ColorSection, 6)
+
+    Create("TextLabel", {
+        Name = "Label",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 2),
+        Size = UDim2.new(1, -20, 0, 16),
+        Font = Enum.Font.GothamMedium,
+        Text = "Background Color",
+        TextColor3 = Theme.TextDim,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = ColorSection
+    })
+
+    local ColorList = {"Purple", "Blue", "Red", "Pink", "Black", "White"}
+    local ColorBtns = {}
+
+    for i, colorName in ipairs(ColorList) do
+        local preset = ColorPresets[colorName]
+        local ColorBtn = Create("TextButton", {
+            Name = colorName,
+            BackgroundColor3 = preset.Accent,
+            Position = UDim2.new(0, 8 + (i - 1) * 52, 0, 22),
+            Size = UDim2.new(0, 46, 0, 20),
+            Font = Enum.Font.GothamBold,
+            Text = colorName,
+            TextColor3 = Theme.Text,
+            TextSize = 9,
+            Parent = ColorSection
+        })
+        AddCorner(ColorBtn, 4)
+
+        ColorBtn.MouseButton1Click:Connect(function()
+            Theme.Window = preset.Window
+            Theme.Accent = preset.Accent
+            Theme.AccentDark = preset.AccentDark
+            Theme.Section = preset.Section
+            Theme.Text = preset.Text
+            Theme.TextDim = preset.TextDim
+            Theme.Card = preset.Card
+            Theme.CardHover = preset.CardHover
+
+            Tween(MainFrame, {BackgroundColor3 = Theme.Window}, 0.3)
+            Tween(TopBar, {BackgroundColor3 = Theme.Section}, 0.3)
+            Tween(TopBarFix, {BackgroundColor3 = Theme.Section}, 0.3)
+            Tween(MainIcon, {ImageColor3 = Theme.Accent}, 0.3)
+            Tween(MinimizeBtn, {BackgroundColor3 = Theme.AccentDark}, 0.3)
+            Tween(MinimizeBtn, {TextColor3 = Theme.Text}, 0.3)
+            Tween(CheeseburgerIcon, {BackgroundColor3 = Theme.Accent}, 0.3)
+            Tween(CheeseburgerIcon, {TextColor3 = Theme.Text}, 0.3)
+            Tween(Title, {TextColor3 = Theme.Text}, 0.3)
+            if StatusLabel then Tween(StatusLabel, {TextColor3 = Theme.TextDim}, 0.3) end
+            if StartBtn then Tween(StartBtn, {TextColor3 = Theme.Text}, 0.3) end
+            if StopBtn then Tween(StopBtn, {TextColor3 = Theme.Text}, 0.3) end
+
+            for _, cb in pairs(ColorBtns) do
+                Tween(cb.Button, {BackgroundColor3 = Theme.Card}, 0.2)
+                Tween(cb.Button, {TextColor3 = Theme.Text}, 0.2)
+            end
+            Tween(ColorBtn, {BackgroundColor3 = Theme.Accent}, 0.2)
+        end)
+
+        ColorBtn.MouseEnter:Connect(function()
+            Tween(ColorBtn, {Size = UDim2.new(0, 46, 0, 24)}, 0.15)
+        end)
+
+        ColorBtn.MouseLeave:Connect(function()
+            Tween(ColorBtn, {Size = UDim2.new(0, 46, 0, 20)}, 0.15)
+        end)
+
+        table.insert(ColorBtns, {Name = colorName, Button = ColorBtn})
+    end
+
+    ColorBtns[1].Button.BackgroundColor3 = Theme.Accent
+
+    StatusLabel = Create("TextLabel", {
+        Name = "Status",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 18),
+        Font = Enum.Font.GothamMedium,
+        Text = "Status: Stopped",
+        TextColor3 = Theme.TextDim,
+        TextSize = 11,
+        Parent = ContentFrame
+    })
+
+    return WindowObj
+end
+
+local Window = FattyScript:CreateWindow({
+    Name = "+1 Fatty Script",
+    Size = UDim2.new(0, 340, 0, 260),
+})
+
+print("[+1 Fatty Script] Loaded")
